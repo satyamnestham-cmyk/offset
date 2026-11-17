@@ -1,0 +1,12 @@
+[general]
+name=QGIS AutoCAD Survey OFFSET and PROLONG
+qgisMinimumVersion=3.16
+qgisMaximumVersion=4.99
+description=Create right/left offset points at a signed cutting distance along a baseline, with optional prolongation.
+version=3.3.1
+author=OpenAI
+about=Pick First Point and Second Point, then enter Cutting Distance, Offset Distance and Prolong distance. Negative cutting distance moves backward; negative offset creates a left-side point.
+category=Vector
+icon=icon.png
+experimental=False
+deprecated=False
