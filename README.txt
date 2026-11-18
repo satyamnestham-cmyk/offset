@@ -1,4 +1,4 @@
-AutoCAD OFFSET + PROLONG for QGIS
+offset points for QGIS
 
 Install:
 1. QGIS > Plugins > Manage and Install Plugins.
