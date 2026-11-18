@@ -1,5 +1,5 @@
 [general]
-name=offset points
+name=Offset Points
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Create right/left offset points at a signed cutting distance along a baseline, with optional prolongation.
