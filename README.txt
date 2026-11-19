@@ -1,11 +1,11 @@
-offset points for QGIS
+Offset Points for QGIS
 
 Install:
 1. QGIS > Plugins > Manage and Install Plugins.
 2. Open the Install from ZIP tab.
 3. Select this ZIP and install it.
 4. Select a projected-CRS Point Layer as the active layer.
-5. Click the AutoCAD OFFSET toolbar icon. Results are added to that same Point Layer.
+5. Click the Offset Points toolbar icon. Results are added to that same Point Layer.
 6. Keep the required line layer visible; the plugin enables Vertex + Segment snapping on visible line layers.
 
 Command:
@@ -56,3 +56,9 @@ v3.2 stability update:
 
 
 Plugin icon: icon.png (used in QGIS Plugin Manager and toolbar).
+
+
+v3.3.7 compatibility update:
+- Resolves QGIS geometry, snapping, and tolerance enums using scoped names when available, with legacy fallbacks for earlier QGIS versions.
+- Intended to address the eight Qt6 enum compatibility findings reported for v3.3.5.
+- Python syntax checked; runtime testing in QGIS 3 and QGIS 4 is still required.

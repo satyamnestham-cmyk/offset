@@ -17,7 +17,7 @@ from qgis.gui import QgsMapTool, QgsSnapIndicator
 from qgis.core import (
     Qgis, QgsProject, QgsPointXY, QgsGeometry, QgsFeature, QgsField,
     QgsVectorLayer, QgsWkbTypes, QgsCoordinateTransform, QgsMapLayerType,
-    QgsUnitTypes, QgsSnappingConfig, QgsTolerance
+    QgsUnitTypes, QgsSnappingConfig, QgsTolerance, QgsPointLocator
 )
 
 
@@ -39,6 +39,17 @@ QT_KEY_ENTER = _enum(Qt, "Key", "Key_Enter")
 DIALOG_ACCEPTED = _enum(QDialog, "DialogCode", "Accepted")
 BUTTON_OK = _enum(QDialogButtonBox, "StandardButton", "Ok")
 BUTTON_CANCEL = _enum(QDialogButtonBox, "StandardButton", "Cancel")
+
+# QGIS 4 scopes several enums which were exposed directly on their classes
+# in earlier QGIS releases. Resolve both forms for cross-version support.
+QGIS_POINT_GEOMETRY = _enum(QgsWkbTypes, "GeometryType", "PointGeometry")
+QGIS_LINE_GEOMETRY = _enum(QgsWkbTypes, "GeometryType", "LineGeometry")
+QGIS_ADVANCED_SNAPPING = _enum(
+    QgsSnappingConfig, "SnappingMode", "AdvancedConfiguration")
+QGIS_SNAP_VERTEX_AND_SEGMENT = _enum(
+    QgsSnappingConfig, "SnappingType", "VertexAndSegment")
+QGIS_SNAP_VERTEX = _enum(QgsSnappingConfig, "SnappingType", "Vertex")
+QGIS_TOLERANCE_PIXELS = _enum(QgsTolerance, "UnitType", "Pixels")
 
 
 def _dialog_exec(dialog):
@@ -64,9 +75,12 @@ class OffsetMapTool(QgsMapTool):
     def canvasMoveEvent(self, event):
         try:
             match = self.canvas.snappingUtils().snapToMap(event.pos())
-            self.indicator.setMatch(match if match.isValid() else None)
+            if match.isValid():
+                self.indicator.setMatch(match)
+            else:
+                self.indicator.setMatch(QgsPointLocator.Match())
         except Exception:
-            self.indicator.setMatch(None)
+            self.indicator.setMatch(QgsPointLocator.Match())
 
     def canvasReleaseEvent(self, event):
         if event.button() != QT_LEFT_BUTTON:
@@ -77,7 +91,7 @@ class OffsetMapTool(QgsMapTool):
                 self.toMapCoordinates(event.pos()))
             self.plugin.capture_baseline_point(point, match.isValid())
         except Exception as exc:
-            QMessageBox.critical(self.plugin.iface.mainWindow(), "AutoCAD OFFSET",
+            QMessageBox.critical(self.plugin.iface.mainWindow(), "Offset Points",
                                  "Point capture failed:\n{}".format(exc))
 
     def keyPressEvent(self, event):
@@ -89,16 +103,14 @@ class OffsetMapTool(QgsMapTool):
             self.plugin.repeat_last()
 
     def clear_indicator(self):
-        try:
-            self.indicator.setMatch(None)
-        except Exception:
-            pass
+        # The map tool owns this indicator; clear it directly during teardown.
+        self.indicator.setMatch(QgsPointLocator.Match())
 
 
 class DistanceDialog(QDialog):
     def __init__(self, parent, units, last_values=None):
         super().__init__(parent)
-        self.setWindowTitle("AutoCAD OFFSET - Cutting / Offset / Prolong")
+        self.setWindowTitle("Offset Points - Cutting / Offset / Prolong")
         layout = QVBoxLayout(self)
 
         layout.addWidget(QLabel(
@@ -164,34 +176,34 @@ class AutoCADOffsetPlugin:
 
     def initGui(self):
         self.action = QAction(QIcon(os.path.join(os.path.dirname(__file__), "icon.png")),
-                             "AutoCAD OFFSET", self.iface.mainWindow())
+                             "Offset Points", self.iface.mainWindow())
         self.action.setToolTip(
             "First Point > Second Point > Cutting Distance / Offset Distance / Prolong")
         self.action.triggered.connect(self.start)
         self.iface.addToolBarIcon(self.action)
-        self.iface.addPluginToMenu("&AutoCAD OFFSET", self.action)
+        self.iface.addPluginToMenu("&Offset Points", self.action)
 
     def unload(self):
         self.restore_tool()
         if self.action:
             self.iface.removeToolBarIcon(self.action)
-            self.iface.removePluginMenu("&AutoCAD OFFSET", self.action)
+            self.iface.removePluginMenu("&Offset Points", self.action)
 
     def start(self):
         active = self.iface.activeLayer()
         if (active is None or not active.isValid()
                 or active.type() != QgsMapLayerType.VectorLayer
-                or QgsWkbTypes.geometryType(active.wkbType()) != QgsWkbTypes.PointGeometry):
+                or QgsWkbTypes.geometryType(active.wkbType()) != QGIS_POINT_GEOMETRY):
             QMessageBox.warning(
-                self.iface.mainWindow(), "AutoCAD OFFSET",
-                "Munduga QGIS lo target Point Layer select cheyyandi.\n"
-                "OFFSET points aa selected Point Layer lone add avuthayi.")
+                self.iface.mainWindow(), "Offset Points",
+                "Please select a Target Point Layer in QGIS first.\n"
+                "The offset points will be added to the selected point layer.")
             return
 
         self.layer = active
         if self.layer.crs().isGeographic():
             QMessageBox.warning(
-                self.iface.mainWindow(), "AutoCAD OFFSET",
+                self.iface.mainWindow(), "Offset Points",
                 "Selected Point Layer uses degrees. Reproject it to a projected CRS (metres/feet) first.")
             return
 
@@ -205,7 +217,7 @@ class AutoCADOffsetPlugin:
         self.previous_snapping_config = project.snappingConfig()
         snap_config = project.snappingConfig()
         snap_config.setEnabled(True)
-        snap_config.setMode(QgsSnappingConfig.AdvancedConfiguration)
+        snap_config.setMode(QGIS_ADVANCED_SNAPPING)
 
         root = project.layerTreeRoot()
         for lyr in project.mapLayers().values():
@@ -215,14 +227,14 @@ class AutoCADOffsetPlugin:
             if node is None or not node.isVisible():
                 continue
             geom_type = QgsWkbTypes.geometryType(lyr.wkbType())
-            if geom_type == QgsWkbTypes.LineGeometry:
-                snap_type = QgsSnappingConfig.VertexAndSegment
-            elif geom_type == QgsWkbTypes.PointGeometry:
-                snap_type = QgsSnappingConfig.Vertex
+            if geom_type == QGIS_LINE_GEOMETRY:
+                snap_type = QGIS_SNAP_VERTEX_AND_SEGMENT
+            elif geom_type == QGIS_POINT_GEOMETRY:
+                snap_type = QGIS_SNAP_VERTEX
             else:
                 continue
             layer_settings = QgsSnappingConfig.IndividualLayerSettings(
-                True, snap_type, 12, QgsTolerance.Pixels)
+                True, snap_type, 12, QGIS_TOLERANCE_PIXELS)
             snap_config.setIndividualLayerSettings(lyr, layer_settings)
         project.setSnappingConfig(snap_config)
 
@@ -285,7 +297,7 @@ class AutoCADOffsetPlugin:
         # Negative cutting distances are allowed backwards from First Point.
         if cutting_dist > length + prolong_dist + 1e-9:
             QMessageBox.warning(
-                self.iface.mainWindow(), "AutoCAD OFFSET",
+                self.iface.mainWindow(), "Offset Points",
                 "Cutting Distance exceeds the baseline + Prolong range.\n"
                 "Baseline: {:.4f} {}\nProlong: {:.4f} {}\nMaximum forward distance: {:.4f} {}"
                 .format(length, units, prolong_dist, units, length + prolong_dist, units))
@@ -333,7 +345,7 @@ class AutoCADOffsetPlugin:
             self.make_offset()
         except Exception as exc:
             QMessageBox.critical(
-                self.iface.mainWindow(), "AutoCAD OFFSET",
+                self.iface.mainWindow(), "Offset Points",
                 "Could not create the point.\n{}\n\n"
                 "Check that the selected Point Layer is editable and has a valid projected CRS."
                 .format(exc))
@@ -344,7 +356,7 @@ class AutoCADOffsetPlugin:
         self.output = self.layer
         if self.output is None or not self.output.isValid():
             raise RuntimeError("Select a valid target Point Layer first.")
-        if QgsWkbTypes.geometryType(self.output.wkbType()) != QgsWkbTypes.PointGeometry:
+        if QgsWkbTypes.geometryType(self.output.wkbType()) != QGIS_POINT_GEOMETRY:
             raise RuntimeError("The selected output layer must be a Point Layer.")
         if not self.output.isEditable():
             if not self.output.startEditing():
@@ -394,7 +406,7 @@ class AutoCADOffsetPlugin:
 
     def prompt(self, message):
         self.iface.messageBar().pushMessage(
-            "AutoCAD OFFSET", message, level=_message_level_info(), duration=0)
+            "Offset Points", message, level=_message_level_info(), duration=0)
 
     def cancel(self):
         self.prompt("OFFSET command finished.")
@@ -411,8 +423,6 @@ class AutoCADOffsetPlugin:
         self.tool = None
         self.old_tool = None
         if self.previous_snapping_config is not None:
-            try:
-                QgsProject.instance().setSnappingConfig(self.previous_snapping_config)
-            except Exception:
-                pass
+            # Restore the user's original snapping configuration explicitly.
+            QgsProject.instance().setSnappingConfig(self.previous_snapping_config)
             self.previous_snapping_config = None

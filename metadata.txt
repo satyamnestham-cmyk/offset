@@ -1,17 +1,16 @@
-
 [general]
 name=Offset Points
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
-description=AutoCAD Style Survey Offset and Prolong Tool for QGIS
-version=3.3.2
+description=Offset Points: create right/left survey points along a baseline with cutting distance and optional prolongation.
+version=3.3.7
 author=Satyam Asileti
 email=satyamnestham@gmail.com
-about=Create right and left survey offset points with cutting distance and prolongation.
-category=Vector
-icon=icon.png
-homepage=https://github.com/satyamnestham-cmyk/offset/blob/main/README.md
+homepage=https://github.com/satyamnestham-cmyk/offset
 repository=https://github.com/satyamnestham-cmyk/offset
 tracker=https://github.com/satyamnestham-cmyk/offset/issues
+about=Offset Points for QGIS. Pick First Point and Second Point, then enter Cutting Distance, Offset Distance and Prolong Distance. Positive offset creates a right-side point; negative offset creates a left-side point.
+category=Vector
+icon=icon.png
 experimental=False
 deprecated=False
